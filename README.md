@@ -34,4 +34,4 @@ For a deeper dive into the architecture, routing protocol, and security model, c
 
 ---
 
-Feel free to contribute, report issues, or suggest improvements!
+Feel free to report issues, or suggest improvements!

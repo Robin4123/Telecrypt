@@ -2,6 +2,8 @@
 
 **Telecrypt** is a lightweight chat application that showcases the principles of **onion routing** — a technique designed to anonymize network traffic through layered encryption.
 
+I WANT TO MAKE CLEAR THAT THIS WORKS ONLY ON WINDOWS MACHINES
+
 ## 🔍 What is Telecrypt?
 
 Telecrypt was built as a demonstration tool to help understand how onion routing can be applied in real-time communication. It simulates a decentralized and privacy-focused chat system, where every message travels through a series of nodes, each adding or removing a layer of encryption.

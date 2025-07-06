@@ -5,7 +5,7 @@
 
 #include "clientSocket.h"
 
-#define DEFAULT_PORT "27015"
+#define DEFAULT_PORT "27014"
 #define SERVER_IP "10.100.102.29"
 
 using namespace std;

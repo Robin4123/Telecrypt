@@ -11,6 +11,8 @@
 int main (){
     
     serverSocket server = serverSocket();
+
+    // TODO: Add checks to the return values of functions to prevent exceptions
     server.createSocket(DEFAULT_PORT);
     server.bindSocket();
     server.listenSocket();

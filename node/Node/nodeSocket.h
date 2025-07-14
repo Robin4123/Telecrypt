@@ -13,7 +13,7 @@
 
 // Main server
 #define DEFAULT_PORT "27015"
-#define SERVER_IP "10.100.102.29"
+#define SERVER_IP "IP_HERE"
 
 using namespace std;
 
@@ -24,8 +24,9 @@ class nodeSocket
 public:
     nodeSocket();
 
-    int createSocket(const char* port);
-
+    //int createSocket(const char* port);
+	SOCKET createSocket(const char* port, const char* ip);
+	
 	// Listening socket
     int listenSocket();
     int bindSocket();

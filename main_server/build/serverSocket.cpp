@@ -54,6 +54,7 @@ int serverSocket::bindSocket()
         return 1;
     }
     freeaddrinfo(result);
+    return 0;
 }
 
 int serverSocket::listenSocket()
@@ -68,6 +69,7 @@ int serverSocket::listenSocket()
     acceptConnection();
 }
 
+// We accept incoming connection and create a thread to handle that connection
 void serverSocket::acceptConnection()
 {
     SOCKET ClientSocket;
@@ -83,19 +85,44 @@ void serverSocket::acceptConnection()
         }
 
         printf("New client connected, creating thread..\n");
-        users.emplace_back(std::thread(&serverSocket::handleClient, this, ClientSocket));
+        userSockets.push_back(ClientSocket);
+        threadedUsers.emplace_back(std::thread(&serverSocket::handleClient, this, ClientSocket));
     }
-    
 }
 
+// We let the user choose a user from the connected users to talk with
+SOCKET serverSocket::chooseUser(SOCKET user)
+{
+    SOCKET otherUser = INVALID_SOCKET;
+    int iResult = 1;
+    int recvbuflen = DEFAULT_BUFLEN;
+    char recvbuf[DEFAULT_BUFLEN];
+    int numUser = userSockets.size() - 1;
+
+    while (numUser == 0)
+    {
+        // Wait until more users are online
+        numUser = userSockets.size() - 1;
+    }
+    sendData("Choose a number between 0 to " + std::to_string(numUser), user);
+    iResult = recv(user, recvbuf, recvbuflen, 0);
+
+    recvbuf[iResult] = '\0';
+    printf("Bytes received: %d From user: %s\n", iResult, std::to_string(user).c_str());
+    printf("%s\n", recvbuf);
+    int num = int(recvbuf[0]) - '0'; // Minus the ASCII value of 0
+    otherUser = userSockets.at(num);
+    return otherUser;
+}
 void serverSocket::handleClient(SOCKET user)
 {
     char recvbuf[DEFAULT_BUFLEN];
     int iResult = 1;
     int recvbuflen = DEFAULT_BUFLEN;
 
-    // Receive until the user disconnects
-    while (iResult > 0)
+    SOCKET otherUser = chooseUser(user);
+    // Receive until the user disconnects or the otherUser has closed it's connection
+    while (iResult > 0 && otherUser != INVALID_SOCKET)
     {
         iResult = recv(user, recvbuf, recvbuflen, 0);
         if (iResult > 0) {
@@ -103,7 +130,9 @@ void serverSocket::handleClient(SOCKET user)
             printf("Bytes received: %d From user: %s\n", iResult, std::to_string(user).c_str());
             printf("%s\n", recvbuf);
 
-            sendData("Custom data", user);
+
+            // Get data from other user and send it to user
+            sendData(recvbuf, otherUser);
         } else if (iResult == 0)
             printf("Connection closing...\n");
         else {
@@ -113,6 +142,8 @@ void serverSocket::handleClient(SOCKET user)
         }
     }
     printf("Connection closed by user: %s...\n", std::to_string(user).c_str());
+    chooseUser(otherUser); // Let the other user choose a new user to talk to
+    userSockets.erase(std::remove(userSockets.begin(), userSockets.end(), user), userSockets.end()); // Removing the disconnected user from the list of connected users
     closesocket(user);
 }
 

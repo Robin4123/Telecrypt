@@ -63,9 +63,9 @@ int clientSocket::connectSocket() {
     if (sock == INVALID_SOCKET) {
         printf("Unable to connect to server!\n");
         WSACleanup();
-        return 1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 SOCKET clientSocket::getSocket() { return sock;}

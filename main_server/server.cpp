@@ -6,17 +6,26 @@
 #include "build/serverSocket.h"
 
 #define DEFAULT_PORT "27015"
-#define DEFAULT_BUFLEN 512
 
 int main (){
     
     serverSocket server = serverSocket();
 
-    // TODO: Add checks to the return values of functions to prevent exceptions
-    server.createSocket(DEFAULT_PORT);
-    server.bindSocket();
-    server.listenSocket();
-    
+    if (server.createSocket(DEFAULT_PORT) == 1)
+    {
+        printf("Failed to create socket\n");
+        return 1;
+    }
+    if (server.bindSocket() == 1)
+    {
+        printf("Failed to bind socket\n");
+        return 1;
+    }
+    if (server.listenSocket() == 1)
+    {
+        printf("Failed to listen socket\n");
+        return 1;
+    }
     
     return 0;
 }

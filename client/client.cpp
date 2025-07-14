@@ -53,7 +53,7 @@ int main (){
 
     Socket.createSocket(DEFAULT_PORT, SERVER_IP);
 
-    if(Socket.connectSocket() == 1)
+    if(!Socket.connectSocket())
     {
         printf("Unable to connect, try again");
         return 0;

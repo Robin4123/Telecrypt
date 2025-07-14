@@ -1,30 +1,27 @@
 #include "nodeSocket.h"
 
 #define DEFAULT_BUFLEN 512
+#define DEFAULT_NODE_PORT "27014"
 
 // Default constructor
 // We intialize one listening socket to incoming connections (Via other nodes or clients)
 nodeSocket::nodeSocket()
 {
     WSADATA wsaData;
-    ListenSocket = INVALID_SOCKET;
     
-    int iResult;
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    int iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
     if(iResult != 0) {
         printf("WSAStartup failed: %d/n", iResult);
     }
     else {
         printf("WSAStartup succeeded\n");
-    }    
+    }
+    ListenSocket = createSocket(DEFAULT_NODE_PORT, nullptr);
 }
 
-// TODO: Since we create sockets in 2 different scenarios (Listening socket and Sending socket), maybe create a function that create socket by IP and port to shorten code
-
-// Creation of the listening socket
-int nodeSocket::createSocket(const char* port)
+// Creates a socket from the provided port and ip address
+SOCKET nodeSocket::createSocket(const char* port,const char* ip)
 {
-    // Creation of the listening socket
     ZeroMemory(&hints, sizeof (hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -32,22 +29,22 @@ int nodeSocket::createSocket(const char* port)
     hints.ai_flags = AI_PASSIVE;
 
     // Resolve the local address and port to be used by the server
-    int iResult = getaddrinfo(NULL, port, &hints, &result);
+    int iResult = getaddrinfo(ip, port, &hints, &result);
     if (iResult != 0) {
         printf("getaddrinfo failed: %d\n", iResult);
         WSACleanup();
-        return 1;
+        return INVALID_SOCKET;
     }
 
-    ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    if (ListenSocket == INVALID_SOCKET) {
+    SOCKET Socket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+    if (Socket == INVALID_SOCKET) {
         printf("Error at socket(): %ld\n", WSAGetLastError());
         freeaddrinfo(result);
         WSACleanup();
-        return 1;
+        return INVALID_SOCKET;
     }
     
-    return 0;
+    return Socket;
 }
 
 int nodeSocket::bindSocket()
@@ -100,40 +97,10 @@ void nodeSocket::acceptConnection()
 // Connecting to main server or the next node in the messages route by the given port and IP
 SOCKET nodeSocket::connectSocket(const char* port, const char* ip)
 {
-    int iResult = 0;
-    SOCKET SendSocket = INVALID_SOCKET;
-
-    // Create socket
-    ZeroMemory( &hints, sizeof(hints) );
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-
-    // Resolve the server address and port
-    iResult = getaddrinfo(ip, port, &hints, &result);
-    if (iResult != 0) {
-        printf("getaddrinfo failed: %d\n", iResult);
-        WSACleanup();
-    }
-
-    SendSocket = INVALID_SOCKET;
-
-    // Attempt to connect to the first address returned by
-    // the call to getaddrinfo
+    SOCKET SendSocket = createSocket(port, ip);
     ptr=result;
-
-    // Create a SOCKET for connecting to server
-    SendSocket = socket(ptr->ai_family, ptr->ai_socktype, 
-        ptr->ai_protocol);
-
-    if (SendSocket == INVALID_SOCKET) {
-        printf("Error at socket(): %ld\n", WSAGetLastError());
-        freeaddrinfo(result);
-        WSACleanup();
-    }
-    
     // Connect to server.
-    iResult = connect(SendSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+    int iResult = connect(SendSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
         closesocket(SendSocket);
         SendSocket = INVALID_SOCKET;
@@ -163,9 +130,32 @@ int nodeSocket::sendData(string data, SOCKET user)
     return iSendResult;
 }
 
+// Function check if the message is valid and prints it to the screen
+// Returns true if yes, false if otherwise and prints the reason
+bool checkAndPrintMessage(const int iResult, char* message)
+{
+    if (iResult > 0)
+    {
+        message[iResult] = '\0';
+        printf("%s", message);
+        return true;
+    }
+    if (iResult == 0)
+    {
+        printf("Connection closing...\n");
+        return false;
+    }
+    else
+    {
+        printf("recv failed: %d\n", WSAGetLastError());
+        return false;
+    }
+}
+
+
 // Function handles client (Can be node or user)
 /*
- * Source sock is the sock we recieve data from
+ * Source sock is the sock we recieve data from, it can be client, another node or the main server
  * Dest sock is the sock we will send data do, it can be client, another node or the main server
  *
  * We first determine the next dest socket
@@ -189,24 +179,22 @@ void nodeSocket::handleClient(SOCKET source_sock)
     {
         printf("Receiving messages from %s...\n", std::to_string(source_sock).c_str());
         iResult = recv(source_sock, recvbuf, recvbuflen, 0);
-        // TODO: Since this code is copied to the getMessagesAndForward consider creating a function to handle the checking of messages
-        if (iResult > 0) {
-            recvbuf[iResult] = '\0';
-            printf("Bytes received: %d From user: %s\n", iResult, std::to_string(source_sock).c_str());
-            printf("%s\n", recvbuf);
-
+        if (checkAndPrintMessage(iResult, recvbuf))
+        {
+            // Message is valid, send back data
             printf("Forwarding messages to %s...\n", std::to_string(dest_sock).c_str());
             sendData(recvbuf, dest_sock);
-        } else if (iResult == 0)
-            printf("Connection closing...\n");
-        else {
-            printf("recv failed: %d\n", WSAGetLastError());
+        }
+        else
+        {
             closesocket(source_sock);
             iResult = 0;
         }
     }
     printf("Connection closed by user: %s...\n", std::to_string(source_sock).c_str());
     closesocket(source_sock);
+    sendData("Connection closed..", dest_sock); // Send to other sock that the user it was connected to has disconnected
+    closesocket(dest_sock);
     recv_thread.join();
 }
 
@@ -221,19 +209,18 @@ void nodeSocket::getMessagesAndForward(SOCKET recv_sock, SOCKET send_sock)
     {
         printf("Receiving messages from %s...\n", std::to_string(recv_sock).c_str());
         iResult = recv(recv_sock, recvbuf, recvbuflen, 0);
-        if (iResult > 0) {
-            recvbuf[iResult] = '\0';
-            printf("Bytes received: %d From user: %s\n", iResult, std::to_string(recv_sock).c_str());
-            printf("%s\n", recvbuf);
-
+        
+        if (checkAndPrintMessage(iResult, recvbuf))
+        {
+            // Message is valid, send back data
             printf("Forwarding messages to %s...\n", std::to_string(send_sock).c_str());
             sendData(recvbuf, send_sock);
-        } else if (iResult == 0)
-            printf("Connection closing...\n");
-        else {
-            printf("recv failed: %d\n", WSAGetLastError());
+        }
+        else
+        {
             closesocket(recv_sock);
-            iResult = 0;}
+            iResult = 0;
+        }
     }
     printf("Connection closed by user: %s...\n", std::to_string(recv_sock).c_str());
     closesocket(recv_sock);

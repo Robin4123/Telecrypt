@@ -26,8 +26,10 @@ public:
 private:
     void acceptConnection();
     void handleClient(SOCKET user);
+    SOCKET chooseUser(SOCKET user);
     
-    std::vector<std::thread> users;
+    std::vector<std::thread> threadedUsers;
+    std::vector<SOCKET> userSockets;
     SOCKET ListenSocket;
     struct addrinfo *result = NULL,
                 *ptr = NULL,

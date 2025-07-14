@@ -11,12 +11,6 @@ int main(int argc, char* argv[])
 {
     nodeSocket server = nodeSocket();
     
-    if (server.createSocket(DEFAULT_PORT) == 1)
-    {
-        printf("Error creating socket\n");
-        return 0;
-    }
-
     // Listening Socket handling
     server.bindSocket();
     if (server.listenSocket() == 1)
